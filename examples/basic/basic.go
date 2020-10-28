@@ -1,0 +1,50 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"sync"
+	"time"
+
+	"github.com/projectdiscovery/clistats"
+)
+
+func main() {
+	statistics := clistats.New()
+	statistics.AddCounter("requests", "Requests")
+	statistics.AddCounter("errors", "Errors")
+	statistics.AddStatic("startedAt", "Started At", time.Now())
+	statistics.AddDynamic("rps", "Requests/Second", clistats.NewRequestsPerSecondCallback(clistats.RequestPerSecondCallbackOptions{
+		StartTimeFieldID:  "startedAt",
+		RequestsCounterID: "requests",
+	}))
+	printMutex := &sync.Mutex{}
+
+	statistics.Start(func(stats clistats.StatisticsClient) {
+		requests, _ := stats.GetCounter("requests")
+		errors, _ := stats.GetCounter("errors")
+		startedAt, _ := stats.GetStatic("startedAt")
+		rps, _ := stats.GetDynamic("rps")
+
+		data := fmt.Sprintf("Requests: [%d/%d] StartedAt: %s RPS: %s", requests, errors, clistats.String(startedAt), clistats.String(rps(stats)))
+		printMutex.Lock()
+		log.Printf("%s\n", data)
+		printMutex.Unlock()
+	}, 1*time.Second)
+
+	statistics.IncrementCounter("requests", 1)
+	time.Sleep(3 * time.Second)
+	statistics.IncrementCounter("requests", 1)
+	statistics.IncrementCounter("requests", 1)
+	statistics.IncrementCounter("requests", 1)
+	statistics.IncrementCounter("requests", 1)
+	statistics.IncrementCounter("errors", 1)
+	statistics.IncrementCounter("requests", 1)
+	statistics.IncrementCounter("requests", 1)
+	time.Sleep(3 * time.Second)
+	statistics.IncrementCounter("requests", 1)
+	statistics.IncrementCounter("requests", 1)
+	statistics.IncrementCounter("requests", 1)
+
+	statistics.Stop()
+}
