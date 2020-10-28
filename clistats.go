@@ -2,11 +2,11 @@ package clistats
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 	"time"
 
 	"github.com/eiannone/keyboard"
+	"github.com/pkg/errors"
 )
 
 // StatisticsClient is an interface implemented by a statistics client.
@@ -74,6 +74,7 @@ type Statistics struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	ticker *time.Ticker
+	events <-chan keyboard.KeyEvent
 
 	// started indicates if the client has started.
 	started uint32
@@ -126,6 +127,12 @@ func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) er
 	atomic.StoreUint32(&s.started, 1)
 	s.printer = printer
 
+	keysEvents, err := keyboard.GetKeys(10)
+	if err != nil {
+		return errors.Wrap(err, "could not get keyboard events")
+	}
+	s.events = keysEvents
+
 	go s.eventLoop(tickDuration)
 	return nil
 }
@@ -136,18 +143,13 @@ func (s *Statistics) eventLoop(tickDuration time.Duration) {
 	s.ticker = time.NewTicker(tickDuration)
 	defer s.ticker.Stop()
 
-	keysEvents, _ := keyboard.GetKeys(10)
-	defer func() {
-		_ = keyboard.Close()
-	}()
-
 	for {
 		select {
 		case <-s.ctx.Done():
 			return
 		case <-s.ticker.C:
 			s.printer(s)
-		case <-keysEvents:
+		case <-s.events:
 			s.printer(s)
 		}
 	}
@@ -156,6 +158,7 @@ func (s *Statistics) eventLoop(tickDuration time.Duration) {
 // Stop stops the event loop of the stats client
 func (s *Statistics) Stop() error {
 	s.cancel()
+	keyboard.Close()
 	if s.ticker != nil {
 		s.ticker.Stop()
 	}
