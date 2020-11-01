@@ -11,8 +11,8 @@ type counterStatistic struct {
 //
 // A counter is used to track an increasing quantity, like requests,
 // errors etc.
-func (s *Statistics) AddCounter(id string) {
-	s.counters[id] = atomic.NewUint64(0)
+func (s *Statistics) AddCounter(id string, value uint64) {
+	s.counters[id] = atomic.NewUint64(value)
 }
 
 // GetCounter returns the current value of a counter.

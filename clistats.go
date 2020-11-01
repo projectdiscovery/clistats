@@ -32,7 +32,7 @@ type StatisticsClient interface {
 	//
 	// A counter is used to track an increasing quantity, like requests,
 	// errors etc.
-	AddCounter(id string)
+	AddCounter(id string, value uint64)
 
 	// GetCounter returns the current value of a counter.
 	GetCounter(id string) (uint64, bool)
