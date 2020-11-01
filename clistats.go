@@ -3,6 +3,7 @@ package clistats
 import (
 	"context"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/eiannone/keyboard"
@@ -152,7 +153,12 @@ func (s *Statistics) eventLoop(tickDuration time.Duration) {
 			return
 		case <-s.ticker.Tick():
 			s.printer(s)
-		case <-s.events:
+		case event := <-s.events:
+			if event.Key == keyboard.KeyCtrlC {
+				s.Stop()
+				syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+				return
+			}
 			s.printer(s)
 		}
 	}
