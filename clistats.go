@@ -73,7 +73,7 @@ type DynamicCallback func(client StatisticsClient) interface{}
 type Statistics struct {
 	ctx    context.Context
 	cancel context.CancelFunc
-	ticker *time.Ticker
+	ticker tickerInterface
 	events <-chan keyboard.KeyEvent
 
 	// started indicates if the client has started.
@@ -140,14 +140,17 @@ func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) er
 // eventLoop is the event loop listening for keyboard events as well as
 // looking out for cancellation attempts.
 func (s *Statistics) eventLoop(tickDuration time.Duration) {
-	s.ticker = time.NewTicker(tickDuration)
-	defer s.ticker.Stop()
+	if tickDuration != -1 {
+		s.ticker = &ticker{t: time.NewTicker(tickDuration)}
+	} else {
+		s.ticker = &noopTicker{tick: make(chan time.Time)}
+	}
 
 	for {
 		select {
 		case <-s.ctx.Done():
 			return
-		case <-s.ticker.C:
+		case <-s.ticker.Tick():
 			s.printer(s)
 		case <-s.events:
 			s.printer(s)
@@ -159,8 +162,6 @@ func (s *Statistics) eventLoop(tickDuration time.Duration) {
 func (s *Statistics) Stop() error {
 	s.cancel()
 	keyboard.Close()
-	if s.ticker != nil {
-		s.ticker.Stop()
-	}
+	s.ticker.Stop()
 	return nil
 }
