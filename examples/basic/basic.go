@@ -11,10 +11,10 @@ import (
 
 func main() {
 	statistics := clistats.New()
-	statistics.AddCounter("requests", "Requests")
-	statistics.AddCounter("errors", "Errors")
-	statistics.AddStatic("startedAt", "Started At", time.Now())
-	statistics.AddDynamic("rps", "Requests/Second", clistats.NewRequestsPerSecondCallback(clistats.RequestPerSecondCallbackOptions{
+	statistics.AddCounter("requests")
+	statistics.AddCounter("errors")
+	statistics.AddStatic("startedAt", time.Now())
+	statistics.AddDynamic("rps", clistats.NewRequestsPerSecondCallback(clistats.RequestPerSecondCallbackOptions{
 		StartTimeFieldID:  "startedAt",
 		RequestsCounterID: "requests",
 	}))

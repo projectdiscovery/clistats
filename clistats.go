@@ -2,12 +2,12 @@ package clistats
 
 import (
 	"context"
-	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/eiannone/keyboard"
 	"github.com/pkg/errors"
+	"go.uber.org/atomic"
 )
 
 // StatisticsClient is an interface implemented by a statistics client.
@@ -32,7 +32,7 @@ type StatisticsClient interface {
 	//
 	// A counter is used to track an increasing quantity, like requests,
 	// errors etc.
-	AddCounter(id, description string) error
+	AddCounter(id string)
 
 	// GetCounter returns the current value of a counter.
 	GetCounter(id string) (uint64, bool)
@@ -45,7 +45,7 @@ type StatisticsClient interface {
 	// The value for these metrics will remain constant throughout the
 	// lifecycle of the statistics client. All the values will be
 	// converted into string and displayed as such.
-	AddStatic(id, description string, value interface{}) error
+	AddStatic(id string, value interface{})
 
 	// GetStatic returns the original value for a static field.
 	GetStatic(id string) (interface{}, bool)
@@ -56,7 +56,7 @@ type StatisticsClient interface {
 	// The callback function performs some actions and returns the value
 	// to display. Generally this is used for calculating requests per
 	// seconds, elapsed time, etc.
-	AddDynamic(id, description string, Callback DynamicCallback) error
+	AddDynamic(id string, Callback DynamicCallback)
 
 	// GetDynamic returns the dynamic field callback for data retrieval.
 	GetDynamic(id string) (DynamicCallback, bool)
@@ -77,31 +77,19 @@ type Statistics struct {
 	ticker tickerInterface
 	events <-chan keyboard.KeyEvent
 
-	// started indicates if the client has started.
-	started uint32
-
 	// counters is a list of counters for the client. These can only
 	// be accessed concurrently via atomic operations and once the main
 	// event loop has started must not be modified.
-	counters map[string]*counterStatistic
+	counters map[string]*atomic.Uint64
 
 	// static contains a list of static counters for the client.
-	static map[string]*staticStatistic
+	static map[string]interface{}
 
 	// dynamic contains a lsit of dynamic metrics for the client.
-	dynamic map[string]*dynamicStatistic
+	dynamic map[string]DynamicCallback
 
 	// printer is the printing callback for data display
 	printer PrintCallback
-}
-
-var (
-	// ErrEventLoopStarted is returned when stats event loop has already started
-	ErrEventLoopStarted = errors.New("stats event loop started")
-)
-
-func (s *Statistics) hasStarted() bool {
-	return atomic.LoadUint32(&s.started) == 1
 }
 
 // PrintCallback is used by clients to build and display a string on the screen.
@@ -116,16 +104,14 @@ func New() *Statistics {
 	return &Statistics{
 		ctx:      ctx,
 		cancel:   cancel,
-		started:  0,
-		counters: make(map[string]*counterStatistic),
-		static:   make(map[string]*staticStatistic),
-		dynamic:  make(map[string]*dynamicStatistic),
+		counters: make(map[string]*atomic.Uint64),
+		static:   make(map[string]interface{}),
+		dynamic:  make(map[string]DynamicCallback),
 	}
 }
 
 // Start starts the event loop of the stats client.
 func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) error {
-	atomic.StoreUint32(&s.started, 1)
 	s.printer = printer
 
 	keysEvents, err := keyboard.GetKeys(10)
