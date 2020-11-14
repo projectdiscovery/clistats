@@ -2,7 +2,6 @@ package clistats
 
 import (
 	"context"
-	"syscall"
 	"time"
 
 	"github.com/eiannone/keyboard"
@@ -142,7 +141,7 @@ func (s *Statistics) eventLoop(tickDuration time.Duration) {
 		case event := <-s.events:
 			if event.Key == keyboard.KeyCtrlC {
 				s.Stop()
-				syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+				kill()
 				return
 			}
 			s.printer(s)
