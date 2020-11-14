@@ -1,12 +1,11 @@
 package clistats
 
 import (
-	"context"
-	"time"
+	"bufio"
+	"os"
 
-	"github.com/eiannone/keyboard"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 // StatisticsClient is an interface implemented by a statistics client.
@@ -22,8 +21,7 @@ import (
 // of same names are overwritten.
 type StatisticsClient interface {
 	// Start starts the event loop of the stats client.
-	Start(printer PrintCallback, tickDuration time.Duration) error
-
+	Start(printer PrintCallback) error
 	// Stop stops the event loop of the stats client
 	Stop() error
 
@@ -71,10 +69,7 @@ type DynamicCallback func(client StatisticsClient) interface{}
 
 // Statistics is a client for showing statistics on the stdout.
 type Statistics struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	ticker tickerInterface
-	events <-chan keyboard.KeyEvent
+	state *terminal.State
 
 	// counters is a list of counters for the client. These can only
 	// be accessed concurrently via atomic operations and once the main
@@ -97,62 +92,46 @@ type PrintCallback func(client StatisticsClient)
 var _ StatisticsClient = (*Statistics)(nil)
 
 // New creates a new statistics client for cli stats printing.
-func New() *Statistics {
-	ctx, cancel := context.WithCancel(context.Background())
+func New() (*Statistics, error) {
+	state, err := terminal.MakeRaw(0)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Statistics{
-		ctx:      ctx,
-		cancel:   cancel,
+		state:    state,
 		counters: make(map[string]*atomic.Uint64),
 		static:   make(map[string]interface{}),
 		dynamic:  make(map[string]DynamicCallback),
-	}
+	}, nil
 }
 
 // Start starts the event loop of the stats client.
-func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) error {
+func (s *Statistics) Start(printer PrintCallback) error {
 	s.printer = printer
-
-	keysEvents, err := keyboard.GetKeys(10)
-	if err != nil {
-		return errors.Wrap(err, "could not get keyboard events")
-	}
-	s.events = keysEvents
-
-	go s.eventLoop(tickDuration)
+	go s.eventLoop()
 	return nil
 }
 
 // eventLoop is the event loop listening for keyboard events as well as
 // looking out for cancellation attempts.
-func (s *Statistics) eventLoop(tickDuration time.Duration) {
-	if tickDuration != -1 {
-		s.ticker = &ticker{t: time.NewTicker(tickDuration)}
-	} else {
-		s.ticker = &noopTicker{tick: make(chan time.Time)}
-	}
+func (s *Statistics) eventLoop() {
+	defer terminal.Restore(0, s.state)
 
+	in := bufio.NewReader(os.Stdin)
 	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		case <-s.ticker.Tick():
-			s.printer(s)
-		case event := <-s.events:
-			if event.Key == keyboard.KeyCtrlC {
-				s.Stop()
-				kill()
-				return
-			}
-			s.printer(s)
+		r, _, err := in.ReadRune()
+		if err != nil {
+			continue
 		}
+		if r == '\x03' {
+			break
+		}
+		s.printer(s)
 	}
 }
 
 // Stop stops the event loop of the stats client
 func (s *Statistics) Stop() error {
-	s.cancel()
-	keyboard.Close()
-	s.ticker.Stop()
 	return nil
 }
