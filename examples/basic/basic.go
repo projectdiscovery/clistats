@@ -10,7 +10,10 @@ import (
 )
 
 func main() {
-	statistics := clistats.New()
+	statistics, err := clistats.New()
+	if err != nil {
+		log.Fatal(err)
+	}
 	statistics.AddCounter("requests", 0)
 	statistics.AddCounter("errors", 0)
 	statistics.AddStatic("startedAt", time.Now())
@@ -28,7 +31,7 @@ func main() {
 
 		data := fmt.Sprintf("Requests: [%d/%d] StartedAt: %s RPS: %s", requests, errors, clistats.String(startedAt), clistats.String(rps(stats)))
 		printMutex.Lock()
-		log.Printf("%s\n", data)
+		log.Printf("%s\r\n", data)
 		printMutex.Unlock()
 	}, 1*time.Second)
 
@@ -45,6 +48,4 @@ func main() {
 	statistics.IncrementCounter("requests", 1)
 	statistics.IncrementCounter("requests", 1)
 	statistics.IncrementCounter("requests", 1)
-
-	statistics.Stop()
 }
