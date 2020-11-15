@@ -33,7 +33,7 @@ func main() {
 		printMutex.Lock()
 		log.Printf("%s\r\n", data)
 		printMutex.Unlock()
-	})
+	}, 1*time.Second)
 
 	statistics.IncrementCounter("requests", 1)
 	time.Sleep(3 * time.Second)

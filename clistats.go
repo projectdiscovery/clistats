@@ -2,7 +2,9 @@ package clistats
 
 import (
 	"bufio"
+	"context"
 	"os"
+	"time"
 
 	"go.uber.org/atomic"
 	"golang.org/x/crypto/ssh/terminal"
@@ -21,7 +23,7 @@ import (
 // of same names are overwritten.
 type StatisticsClient interface {
 	// Start starts the event loop of the stats client.
-	Start(printer PrintCallback) error
+	Start(printer PrintCallback, tickDuration time.Duration) error
 	// Stop stops the event loop of the stats client
 	Stop() error
 
@@ -69,7 +71,11 @@ type DynamicCallback func(client StatisticsClient) interface{}
 
 // Statistics is a client for showing statistics on the stdout.
 type Statistics struct {
-	state *terminal.State
+	ctx    context.Context
+	cancel context.CancelFunc
+	ticker tickerInterface
+	state  *terminal.State
+	events chan rune
 
 	// counters is a list of counters for the client. These can only
 	// be accessed concurrently via atomic operations and once the main
@@ -93,13 +99,11 @@ var _ StatisticsClient = (*Statistics)(nil)
 
 // New creates a new statistics client for cli stats printing.
 func New() (*Statistics, error) {
-	state, err := terminal.MakeRaw(0)
-	if err != nil {
-		return nil, err
-	}
+	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Statistics{
-		state:    state,
+		ctx:      ctx,
+		cancel:   cancel,
 		counters: make(map[string]*atomic.Uint64),
 		static:   make(map[string]interface{}),
 		dynamic:  make(map[string]DynamicCallback),
@@ -107,31 +111,73 @@ func New() (*Statistics, error) {
 }
 
 // Start starts the event loop of the stats client.
-func (s *Statistics) Start(printer PrintCallback) error {
+func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) error {
 	s.printer = printer
-	go s.eventLoop()
+
+	state, err := terminal.MakeRaw(0)
+	if err != nil {
+		return err
+	}
+
+	s.state = state
+	s.events = make(chan rune)
+	s.internalRead()
+
+	go s.eventLoop(tickDuration)
 	return nil
 }
 
 // eventLoop is the event loop listening for keyboard events as well as
 // looking out for cancellation attempts.
-func (s *Statistics) eventLoop() {
+func (s *Statistics) eventLoop(tickDuration time.Duration) {
 	defer terminal.Restore(0, s.state)
 
-	in := bufio.NewReader(os.Stdin)
-	for {
-		r, _, err := in.ReadRune()
-		if err != nil {
-			continue
-		}
-		if r == '\x03' {
-			break
-		}
-		s.printer(s)
+	if tickDuration != -1 {
+		s.ticker = &ticker{t: time.NewTicker(tickDuration)}
+	} else {
+		s.ticker = &noopTicker{tick: make(chan time.Time)}
 	}
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-s.ticker.Tick():
+			s.printer(s)
+		case event := <-s.events:
+			if event == '\x03' {
+				s.Stop()
+				terminal.Restore(0, s.state)
+				kill()
+				return
+			}
+			s.printer(s)
+		}
+	}
+}
+
+func (s *Statistics) internalRead() {
+	go func() {
+		in := bufio.NewReader(os.Stdin)
+		for {
+			select {
+			case <-s.ctx.Done():
+				close(s.events)
+				return
+			default:
+				r, _, err := in.ReadRune()
+				if err != nil {
+					continue
+				}
+				s.events <- r
+			}
+		}
+	}()
 }
 
 // Stop stops the event loop of the stats client
 func (s *Statistics) Stop() error {
+	s.cancel()
+	s.ticker.Stop()
 	return nil
 }
