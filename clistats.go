@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
 // StatisticsClient is an interface implemented by a statistics client.
@@ -74,7 +73,6 @@ type Statistics struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	ticker tickerInterface
-	state  *terminal.State
 	events chan rune
 
 	// counters is a list of counters for the client. These can only
@@ -114,12 +112,6 @@ func New() (*Statistics, error) {
 func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) error {
 	s.printer = printer
 
-	state, err := terminal.MakeRaw(0)
-	if err != nil {
-		return err
-	}
-
-	s.state = state
 	s.events = make(chan rune)
 	s.internalRead()
 
@@ -130,8 +122,6 @@ func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) er
 // eventLoop is the event loop listening for keyboard events as well as
 // looking out for cancellation attempts.
 func (s *Statistics) eventLoop(tickDuration time.Duration) {
-	defer terminal.Restore(0, s.state)
-
 	if tickDuration != -1 {
 		s.ticker = &ticker{t: time.NewTicker(tickDuration)}
 	} else {
@@ -147,7 +137,6 @@ func (s *Statistics) eventLoop(tickDuration time.Duration) {
 		case event := <-s.events:
 			if event == '\x03' {
 				s.Stop()
-				terminal.Restore(0, s.state)
 				kill()
 				return
 			}
