@@ -167,6 +167,8 @@ func (s *Statistics) internalRead() {
 // Stop stops the event loop of the stats client
 func (s *Statistics) Stop() error {
 	s.cancel()
-	s.ticker.Stop()
+	if s.ticker != nil {
+		s.ticker.Stop()
+	}
 	return nil
 }
