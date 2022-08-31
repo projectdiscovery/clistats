@@ -2,11 +2,6 @@ package clistats
 
 import "go.uber.org/atomic"
 
-// counterStatistic is a counter stats field
-type counterStatistic struct {
-	value uint64
-}
-
 // AddCounter adds a uint64 counter field to the statistics client.
 //
 // A counter is used to track an increasing quantity, like requests,

@@ -136,7 +136,7 @@ func (s *Statistics) eventLoop(tickDuration time.Duration) {
 			s.printer(s)
 		case event := <-s.events:
 			if event == '\x03' {
-				s.Stop()
+				_ = s.Stop()
 				kill()
 				return
 			}

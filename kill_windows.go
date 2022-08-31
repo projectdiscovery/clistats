@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package clistats
@@ -11,5 +12,5 @@ func kill() {
 	if err != nil {
 		return
 	}
-	p.Signal(os.Kill)
+	_ = p.Signal(os.Kill)
 }
