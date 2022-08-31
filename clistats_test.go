@@ -1,18 +1,40 @@
 package clistats
 
-import "time"
+import (
+	"testing"
+	"time"
 
-func ExampleDynamicCallback_rps(client StatisticsClient) interface{} {
-	requests, _ := client.GetCounter("requests")
-	start, _ := client.GetStatic("startTime")
+	"github.com/stretchr/testify/require"
+)
+
+func TestExampleDynamicCallbackRps(t *testing.T) {
+	client, err := New()
+	require.Nil(t, err)
+
+	client.AddCounter("requests", 1000)
+	client.AddStatic("startTime", time.Now())
+
+	requests, ok := client.GetCounter("requests")
+	require.True(t, ok)
+	start, ok := client.GetStatic("startTime")
+	require.True(t, ok)
 	startTime := start.(time.Time)
-
-	return float64(requests) / time.Since(startTime).Seconds()
+	rps := float64(requests) / time.Since(startTime).Seconds()
+	require.True(t, rps > 0)
 }
 
-func ExampleDynamicCallback_Elapsedtime(client StatisticsClient) interface{} {
-	start, _ := client.GetStatic("startTime")
+func TestDynamicCallback_Elapsedtime(t *testing.T) {
+	client, err := New()
+	require.Nil(t, err)
+
+	client.AddStatic("startTime", time.Now())
+
+	time.Sleep(time.Second)
+
+	start, ok := client.GetStatic("startTime")
+	require.True(t, ok)
 	startTime := start.(time.Time)
 
-	return time.Since(startTime).Seconds()
+	elapsed := time.Since(startTime).Seconds()
+	require.True(t, elapsed > 0)
 }
