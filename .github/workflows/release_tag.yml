@@ -1,7 +1,6 @@
 name: 🔖 Release Tag
 
 on:
-  push:
   workflow_dispatch:
   schedule:
     - cron: '0 0 * * 0'
@@ -24,7 +23,7 @@ jobs:
         id: tag_version
         uses: mathieudutour/github-tag-action@v6.1
         with:
-          github_token: ${{ secrets.GITHUaB_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create a GitHub release
         if: ${{ steps.get_commit.outputs.COMMIT_COUNT }}
