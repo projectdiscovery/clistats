@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/stretchr/testify v1.8.1
-	go.uber.org/atomic v1.7.0
+	go.uber.org/atomic v1.10.0
 )
 
 require (
