@@ -3,10 +3,13 @@ package clistats
 import (
 	"bufio"
 	"context"
+	"fmt"
+	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
-	"go.uber.org/atomic"
+	jsoniter "github.com/json-iterator/go"
 )
 
 // StatisticsClient is an interface implemented by a statistics client.
@@ -64,16 +67,17 @@ type StatisticsClient interface {
 // field.
 //
 // The value returned from this callback is displayed as the current value
-// of a dynamic field. This can be utilised to calculated things like elapsed
+// of a dynamic field. This can be utilised to calculate things like elapsed
 // time, requests per seconds, etc.
 type DynamicCallback func(client StatisticsClient) interface{}
 
 // Statistics is a client for showing statistics on the stdout.
 type Statistics struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	ticker tickerInterface
-	events chan rune
+	options *Options
+	ctx     context.Context
+	cancel  context.CancelFunc
+	ticker  tickerInterface
+	events  chan rune
 
 	// counters is a list of counters for the client. These can only
 	// be accessed concurrently via atomic operations and once the main
@@ -83,7 +87,7 @@ type Statistics struct {
 	// static contains a list of static counters for the client.
 	static map[string]interface{}
 
-	// dynamic contains a lsit of dynamic metrics for the client.
+	// dynamic contains a list of dynamic metrics for the client.
 	dynamic map[string]DynamicCallback
 
 	// printer is the printing callback for data display
@@ -95,17 +99,23 @@ type PrintCallback func(client StatisticsClient)
 
 var _ StatisticsClient = (*Statistics)(nil)
 
-// New creates a new statistics client for cli stats printing.
+// New creates a new statistics client for cli stats printing with default options
 func New() (*Statistics, error) {
-	ctx, cancel := context.WithCancel(context.Background())
+	return NewWithOptions(context.Background(), &DefaultOptions)
+}
 
-	return &Statistics{
+// NewWithOptions creates a new client with custom options
+func NewWithOptions(ctx context.Context, options *Options) (*Statistics, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	statistics := &Statistics{
+		options:  options,
 		ctx:      ctx,
 		cancel:   cancel,
 		counters: make(map[string]*atomic.Uint64),
 		static:   make(map[string]interface{}),
 		dynamic:  make(map[string]DynamicCallback),
-	}, nil
+	}
+	return statistics, nil
 }
 
 // Start starts the event loop of the stats client.
@@ -116,6 +126,30 @@ func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) er
 	s.internalRead()
 
 	go s.eventLoop(tickDuration)
+
+	if s.options.Web {
+		http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+			items := make(map[string]interface{})
+			for k, v := range s.counters {
+				items[k] = v.Load()
+			}
+			for k, v := range s.static {
+				items[k] = v
+			}
+			for k, v := range s.dynamic {
+				items[k] = v(s)
+			}
+
+			data, err := jsoniter.Marshal(items)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte(fmt.Sprintf(`{"error":"%s"}`, err)))
+				return
+			}
+			_, _ = w.Write(data)
+		})
+		go http.ListenAndServe(s.options.ListenAddress, nil) //nolint
+	}
 	return nil
 }
 
