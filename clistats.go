@@ -168,7 +168,9 @@ func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) er
 			Handler: http.DefaultServeMux,
 		}
 
-		go s.httpServer.ListenAndServe()
+		go func() {
+			_ = s.httpServer.ListenAndServe()
+		}()
 	}
 	return nil
 }
