@@ -74,7 +74,7 @@ type DynamicCallback func(client StatisticsClient) interface{}
 
 // Statistics is a client for showing statistics on the stdout.
 type Statistics struct {
-	options *Options
+	Options *Options
 	ctx     context.Context
 	cancel  context.CancelFunc
 	ticker  tickerInterface
@@ -111,7 +111,7 @@ func NewWithOptions(ctx context.Context, options *Options) (*Statistics, error) 
 	ctx, cancel := context.WithCancel(ctx)
 
 	statistics := &Statistics{
-		options:  options,
+		Options:  options,
 		ctx:      ctx,
 		cancel:   cancel,
 		counters: make(map[string]*atomic.Uint64),
@@ -130,7 +130,7 @@ func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) er
 
 	go s.eventLoop(tickDuration)
 
-	if s.options.Web {
+	if s.Options.Web {
 		http.HandleFunc("/metrics", func(w http.ResponseWriter, req *http.Request) {
 			items := make(map[string]interface{})
 			for k, v := range s.counters {
@@ -153,14 +153,14 @@ func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) er
 		})
 
 		// check if the default port is available
-		port, err := freeport.GetPort(freeport.TCP, "127.0.0.1", s.options.ListenPort)
+		port, err := freeport.GetPort(freeport.TCP, "127.0.0.1", s.Options.ListenPort)
 		if err != nil {
 			// otherwise picks a random one and update the options
 			port, err = freeport.GetFreeTCPPort("127.0.0.1")
 			if err != nil {
 				return err
 			}
-			s.options.ListenPort = port.Port
+			s.Options.ListenPort = port.Port
 		}
 
 		s.httpServer = &http.Server{
