@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	github.com/json-iterator/go v1.1.12
+	github.com/projectdiscovery/freeport v0.0.4
 	github.com/stretchr/testify v1.8.1
 )
 

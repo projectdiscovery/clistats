@@ -10,6 +10,7 @@ import (
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/projectdiscovery/freeport"
 )
 
 // StatisticsClient is an interface implemented by a statistics client.
@@ -91,7 +92,8 @@ type Statistics struct {
 	dynamic map[string]DynamicCallback
 
 	// printer is the printing callback for data display
-	printer PrintCallback
+	printer    PrintCallback
+	httpServer *http.Server
 }
 
 // PrintCallback is used by clients to build and display a string on the screen.
@@ -107,6 +109,7 @@ func New() (*Statistics, error) {
 // NewWithOptions creates a new client with custom options
 func NewWithOptions(ctx context.Context, options *Options) (*Statistics, error) {
 	ctx, cancel := context.WithCancel(ctx)
+
 	statistics := &Statistics{
 		options:  options,
 		ctx:      ctx,
@@ -128,7 +131,7 @@ func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) er
 	go s.eventLoop(tickDuration)
 
 	if s.options.Web {
-		http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		http.HandleFunc("/metrics", func(w http.ResponseWriter, req *http.Request) {
 			items := make(map[string]interface{})
 			for k, v := range s.counters {
 				items[k] = v.Load()
@@ -148,7 +151,24 @@ func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) er
 			}
 			_, _ = w.Write(data)
 		})
-		go http.ListenAndServe(s.options.ListenAddress, nil) //nolint
+
+		// check if the default port is available
+		port, err := freeport.GetPort(freeport.TCP, "127.0.0.1", s.options.ListenPort)
+		if err != nil {
+			// otherwise picks a random one and update the options
+			port, err = freeport.GetFreeTCPPort("127.0.0.1")
+			if err != nil {
+				return err
+			}
+			s.options.ListenPort = port.Port
+		}
+
+		s.httpServer = &http.Server{
+			Addr:    fmt.Sprintf("%s:%d", port.Address, port.Port),
+			Handler: http.DefaultServeMux,
+		}
+
+		go s.httpServer.ListenAndServe()
 	}
 	return nil
 }
@@ -203,6 +223,11 @@ func (s *Statistics) Stop() error {
 	s.cancel()
 	if s.ticker != nil {
 		s.ticker.Stop()
+	}
+	if s.httpServer != nil {
+		if err := s.httpServer.Shutdown(context.Background()); err != nil {
+			return err
+		}
 	}
 	return nil
 }
