@@ -178,6 +178,9 @@ func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) er
 // eventLoop is the event loop listening for keyboard events as well as
 // looking out for cancellation attempts.
 func (s *Statistics) eventLoop(tickDuration time.Duration) {
+	if s.printer == nil {
+		return
+	}
 	if tickDuration != -1 {
 		s.ticker = &ticker{t: time.NewTicker(tickDuration)}
 	} else {
