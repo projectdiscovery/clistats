@@ -189,14 +189,18 @@ func (s *Statistics) eventLoop(tickDuration time.Duration) {
 		case <-s.ctx.Done():
 			return
 		case <-s.ticker.Tick():
-			s.printer(s)
+			if s.printer != nil {
+				s.printer(s)
+			}
 		case event := <-s.events:
 			if event == '\x03' {
 				_ = s.Stop()
 				kill()
 				return
 			}
-			s.printer(s)
+			if s.printer != nil {
+				s.printer(s)
+			}
 		}
 	}
 }
