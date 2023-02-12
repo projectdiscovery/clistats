@@ -143,6 +143,33 @@ func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) er
 				items[k] = v(s)
 			}
 
+			// Common fields
+			requests, hasRequests := s.GetCounter("requests")
+			startedAt, hasStartedAt := s.GetStatic("startedAt")
+			total, hasTotal := s.GetCounter("total")
+			var (
+				duration    time.Duration
+				hasDuration bool
+			)
+			// duration
+			if hasStartedAt {
+				if stAt, ok := startedAt.(time.Time); ok {
+					duration = time.Since(stAt)
+					items["duration"] = FmtDuration(duration)
+					hasDuration = true
+				}
+			}
+			// rps
+			if hasRequests && hasDuration {
+				items["rps"] = String(uint64(float64(requests) / duration.Seconds()))
+			}
+			// percent
+			if hasRequests && hasTotal {
+				percentData := (float64(requests) * float64(100)) / float64(total)
+				percent := String(uint64(percentData))
+				items["percent"] = percent
+			}
+
 			data, err := jsoniter.Marshal(items)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
