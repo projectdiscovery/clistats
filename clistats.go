@@ -1,13 +1,10 @@
 package clistats
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"sync/atomic"
-	"time"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/projectdiscovery/freeport"
@@ -26,7 +23,7 @@ import (
 // of same names are overwritten.
 type StatisticsClient interface {
 	// Start starts the event loop of the stats client.
-	Start(printer PrintCallback, tickDuration time.Duration) error
+	Start() error
 	// Stop stops the event loop of the stats client
 	Stop() error
 
@@ -77,8 +74,6 @@ type Statistics struct {
 	Options *Options
 	ctx     context.Context
 	cancel  context.CancelFunc
-	ticker  tickerInterface
-	events  chan rune
 
 	// counters is a list of counters for the client. These can only
 	// be accessed concurrently via atomic operations and once the main
@@ -91,13 +86,8 @@ type Statistics struct {
 	// dynamic contains a list of dynamic metrics for the client.
 	dynamic map[string]DynamicCallback
 
-	// printer is the printing callback for data display
-	printer    PrintCallback
 	httpServer *http.Server
 }
-
-// PrintCallback is used by clients to build and display a string on the screen.
-type PrintCallback func(client StatisticsClient)
 
 var _ StatisticsClient = (*Statistics)(nil)
 
@@ -122,14 +112,7 @@ func NewWithOptions(ctx context.Context, options *Options) (*Statistics, error) 
 }
 
 // Start starts the event loop of the stats client.
-func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) error {
-	s.printer = printer
-
-	s.events = make(chan rune)
-	s.internalRead()
-
-	go s.eventLoop(tickDuration)
-
+func (s *Statistics) Start() error {
 	if s.Options.Web {
 		http.HandleFunc("/metrics", func(w http.ResponseWriter, req *http.Request) {
 			items := make(map[string]interface{})
@@ -202,64 +185,9 @@ func (s *Statistics) Start(printer PrintCallback, tickDuration time.Duration) er
 	return nil
 }
 
-// eventLoop is the event loop listening for keyboard events as well as
-// looking out for cancellation attempts.
-func (s *Statistics) eventLoop(tickDuration time.Duration) {
-	if s.printer == nil {
-		return
-	}
-	if tickDuration != -1 {
-		s.ticker = &ticker{t: time.NewTicker(tickDuration)}
-	} else {
-		s.ticker = &noopTicker{tick: make(chan time.Time)}
-	}
-
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		case <-s.ticker.Tick():
-			if s.printer != nil {
-				s.printer(s)
-			}
-		case event := <-s.events:
-			if event == '\x03' {
-				_ = s.Stop()
-				kill()
-				return
-			}
-			if s.printer != nil {
-				s.printer(s)
-			}
-		}
-	}
-}
-
-func (s *Statistics) internalRead() {
-	go func() {
-		in := bufio.NewReader(os.Stdin)
-		for {
-			select {
-			case <-s.ctx.Done():
-				close(s.events)
-				return
-			default:
-				r, _, err := in.ReadRune()
-				if err != nil {
-					continue
-				}
-				s.events <- r
-			}
-		}
-	}()
-}
-
 // Stop stops the event loop of the stats client
 func (s *Statistics) Stop() error {
 	s.cancel()
-	if s.ticker != nil {
-		s.ticker.Stop()
-	}
 	if s.httpServer != nil {
 		if err := s.httpServer.Shutdown(context.Background()); err != nil {
 			return err
