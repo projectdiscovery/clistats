@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync/atomic"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/projectdiscovery/freeport"
