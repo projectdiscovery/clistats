@@ -3,12 +3,14 @@ package clistats
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"sync/atomic"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/projectdiscovery/freeport"
+	"github.com/projectdiscovery/gologger"
 )
 
 // StatisticsClient is an interface implemented by a statistics client.
@@ -60,6 +62,9 @@ type StatisticsClient interface {
 
 	// GetDynamic returns the dynamic field callback for data retrieval.
 	GetDynamic(id string) (DynamicCallback, bool)
+
+	//GetStatResponse returns '/metrics' response for a given interval
+	GetStatResponse(interval time.Duration) <-chan string
 }
 
 // DynamicCallback is called during statistics calculation for a dynamic
@@ -184,6 +189,35 @@ func (s *Statistics) Start() error {
 		}()
 	}
 	return nil
+}
+
+//GetStatResponse returns '/metrics' response for a given interval
+func (s *Statistics) GetStatResponse(interval time.Duration) <-chan string {
+	metricCallback := func(url string) string {
+		response, err := http.Get(url)
+
+		if err != nil {
+			gologger.Error().Msgf("Error getting /metrics response: %v", err)
+			return ""
+		}
+		defer response.Body.Close()
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			gologger.Error().Msgf("Error reading /metrics response body: %v\n", err)
+			return ""
+		}
+		return string(body)
+	}
+
+	ticker := time.NewTicker(interval)
+	statString := make(chan string)
+	url := fmt.Sprintf("http://127.0.0.1:%v/metrics", s.Options.ListenPort)
+	go func() {
+		for range ticker.C {
+			statString <- metricCallback(url)
+		}
+	}()
+	return statString
 }
 
 // Stop stops the event loop of the stats client
