@@ -11,6 +11,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/projectdiscovery/freeport"
 	"github.com/projectdiscovery/gologger"
+	errorutil "github.com/projectdiscovery/utils/errors"
 )
 
 // StatisticsClient is an interface implemented by a statistics client.
@@ -191,22 +192,19 @@ func (s *Statistics) Start() error {
 	return nil
 }
 
-//GetStatResponse returns '/metrics' response for a given interval
+// GetStatResponse returns '/metrics' response for a given interval
 func (s *Statistics) GetStatResponse(interval time.Duration) <-chan string {
-	metricCallback := func(url string) string {
+	metricCallback := func(url string) (string, error) {
 		response, err := http.Get(url)
-
 		if err != nil {
-			gologger.Error().Msgf("Error getting /metrics response: %v", err)
-			return ""
+			return "", errorutil.New("Error getting /metrics response: %v", err)
 		}
 		defer response.Body.Close()
 		body, err := io.ReadAll(response.Body)
 		if err != nil {
-			gologger.Error().Msgf("Error reading /metrics response body: %v\n", err)
-			return ""
+			return "", errorutil.New("Error reading /metrics response body: %v", err)
 		}
-		return string(body)
+		return string(body), nil
 	}
 
 	ticker := time.NewTicker(interval)
@@ -214,7 +212,15 @@ func (s *Statistics) GetStatResponse(interval time.Duration) <-chan string {
 	url := fmt.Sprintf("http://127.0.0.1:%v/metrics", s.Options.ListenPort)
 	go func() {
 		for range ticker.C {
-			statString <- metricCallback(url)
+			if stats, err := metricCallback(url); err != nil {
+				if err != nil {
+					gologger.Error().Msg(err.Error())
+					close(statString)
+					ticker.Stop()
+					return
+				}
+				statString <- stats
+			}
 		}
 	}()
 	return statString
