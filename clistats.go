@@ -10,7 +10,6 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/projectdiscovery/freeport"
-	"github.com/projectdiscovery/gologger"
 	errorutil "github.com/projectdiscovery/utils/errors"
 )
 
@@ -65,7 +64,7 @@ type StatisticsClient interface {
 	GetDynamic(id string) (DynamicCallback, bool)
 
 	//GetStatResponse returns '/metrics' response for a given interval
-	GetStatResponse(interval time.Duration) <-chan string
+	GetStatResponse(interval time.Duration, callback func(string, error))
 }
 
 // DynamicCallback is called during statistics calculation for a dynamic
@@ -193,7 +192,7 @@ func (s *Statistics) Start() error {
 }
 
 // GetStatResponse returns '/metrics' response for a given interval
-func (s *Statistics) GetStatResponse(interval time.Duration) <-chan string {
+func (s *Statistics) GetStatResponse(interval time.Duration, callback func(string, error)) {
 	metricCallback := func(url string) (string, error) {
 		response, err := http.Get(url)
 		if err != nil {
@@ -208,22 +207,12 @@ func (s *Statistics) GetStatResponse(interval time.Duration) <-chan string {
 	}
 
 	ticker := time.NewTicker(interval)
-	statString := make(chan string)
 	url := fmt.Sprintf("http://127.0.0.1:%v/metrics", s.Options.ListenPort)
 	go func() {
 		for range ticker.C {
-			if stats, err := metricCallback(url); err != nil {
-				if err != nil {
-					gologger.Error().Msg(err.Error())
-					close(statString)
-					ticker.Stop()
-					return
-				}
-				statString <- stats
-			}
+			callback(metricCallback(url))
 		}
 	}()
-	return statString
 }
 
 // Stop stops the event loop of the stats client
