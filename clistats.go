@@ -64,7 +64,7 @@ type StatisticsClient interface {
 	GetDynamic(id string) (DynamicCallback, bool)
 
 	//GetStatResponse returns '/metrics' response for a given interval
-	GetStatResponse(interval time.Duration, callback func(string, error))
+	GetStatResponse(interval time.Duration, callback func(string, error) error)
 }
 
 // DynamicCallback is called during statistics calculation for a dynamic
@@ -192,7 +192,7 @@ func (s *Statistics) Start() error {
 }
 
 // GetStatResponse returns '/metrics' response for a given interval
-func (s *Statistics) GetStatResponse(interval time.Duration, callback func(string, error)) {
+func (s *Statistics) GetStatResponse(interval time.Duration, callback func(string, error) error) {
 	metricCallback := func(url string) (string, error) {
 		response, err := http.Get(url)
 		if err != nil {
@@ -206,11 +206,19 @@ func (s *Statistics) GetStatResponse(interval time.Duration, callback func(strin
 		return string(body), nil
 	}
 
-	ticker := time.NewTicker(interval)
 	url := fmt.Sprintf("http://127.0.0.1:%v/metrics", s.Options.ListenPort)
 	go func() {
-		for range ticker.C {
-			callback(metricCallback(url))
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			case <-ticker.C:
+				if err := callback(metricCallback(url)); err != nil {
+					return
+				}
+			}
 		}
 	}()
 }
