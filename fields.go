@@ -2,7 +2,7 @@ package clistats
 
 import "sync/atomic"
 
-// AddCounter adds a uint64 counter field to the statistics client.
+// AddCounter adds an uint64 counter field to the statistics client.
 //
 // A counter is used to track an increasing quantity, like requests,
 // errors etc.

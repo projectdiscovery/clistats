@@ -198,7 +198,9 @@ func (s *Statistics) GetStatResponse(interval time.Duration, callback func(strin
 		if err != nil {
 			return "", errorutil.New("Error getting /metrics response: %v", err)
 		}
-		defer response.Body.Close()
+		defer func() {
+			_ = response.Body.Close()
+		}()
 		body, err := io.ReadAll(response.Body)
 		if err != nil {
 			return "", errorutil.New("Error reading /metrics response body: %v", err)
