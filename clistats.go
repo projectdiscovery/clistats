@@ -187,9 +187,24 @@ func (s *Statistics) Start() error {
 			Handler: mux,
 		}
 
+		errChan := make(chan error, 1)
+		var done atomic.Bool
+
 		go func() {
-			_ = s.httpServer.ListenAndServe()
+			if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed && !done.Load() {
+				errChan <- err
+			}
 		}()
+
+		// catch initial fatal errors
+		select {
+		case err := <-errChan:
+			return err
+		case <-time.After(250 * time.Millisecond):
+			done.Store(true)
+			close(errChan)
+		}
+
 	}
 	return nil
 }
