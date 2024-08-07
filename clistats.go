@@ -187,7 +187,9 @@ func (s *Statistics) Start() error {
 			Handler: mux,
 		}
 
-		go s.httpServer.ListenAndServe()
+		go func() {
+			_ = s.httpServer.ListenAndServe()
+		}()
 	}
 	return nil
 }
