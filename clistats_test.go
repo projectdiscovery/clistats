@@ -38,3 +38,16 @@ func TestDynamicCallback_Elapsedtime(t *testing.T) {
 	elapsed := time.Since(startTime).Seconds()
 	require.True(t, elapsed > 0)
 }
+
+func TestStartMultipleTimes(t *testing.T) {
+	client, err := New()
+	require.Nil(t, err)
+
+	for i := 1; i <= 2; i++ {
+		err = client.Start()
+		require.Nil(t, err)
+
+		err = client.Stop()
+		require.Nil(t, err)
+	}
+}
