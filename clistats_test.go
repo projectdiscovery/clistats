@@ -51,3 +51,21 @@ func TestStartMultipleTimes(t *testing.T) {
 		require.Nil(t, err)
 	}
 }
+
+func TestStartMultipleTimesWithoutStopping(t *testing.T) {
+	client, err := New()
+	require.Nil(t, err)
+
+	for i := 1; i <= 2; i++ {
+		err = client.Start()
+
+		if i == 1 {
+			require.Nil(t, err)
+		} else {
+			require.NotNil(t, err)
+		}
+	}
+
+	err = client.Stop()
+	require.Nil(t, err)
+}
