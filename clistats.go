@@ -222,6 +222,7 @@ func (s *Statistics) Stop() error {
 			return err
 		}
 	}
+	s.httpServer = nil
 
 	return nil
 }
