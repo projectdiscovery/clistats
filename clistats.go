@@ -167,6 +167,10 @@ func (s *Statistics) metricsHandler(w http.ResponseWriter, req *http.Request) {
 
 // Start starts the event loop of the stats client.
 func (s *Statistics) Start() error {
+	if s.httpServer != nil {
+		return errorutil.New("server already started")
+	}
+
 	if s.Options.Web {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/metrics", s.metricsHandler)
@@ -209,6 +213,20 @@ func (s *Statistics) Start() error {
 	return nil
 }
 
+// Stop stops the event loop of the stats client
+func (s *Statistics) Stop() error {
+	defer s.cancel()
+
+	if s.httpServer != nil {
+		if err := s.httpServer.Shutdown(s.ctx); err != nil {
+			return err
+		}
+	}
+	s.httpServer = nil
+
+	return nil
+}
+
 // GetStatResponse returns '/metrics' response for a given interval
 func (s *Statistics) GetStatResponse(interval time.Duration, callback func(string, error) error) {
 	metricCallback := func(url string) (string, error) {
@@ -241,17 +259,4 @@ func (s *Statistics) GetStatResponse(interval time.Duration, callback func(strin
 			}
 		}
 	}()
-}
-
-// Stop stops the event loop of the stats client
-func (s *Statistics) Stop() error {
-	defer s.cancel()
-
-	if s.httpServer != nil {
-		if err := s.httpServer.Shutdown(s.ctx); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
