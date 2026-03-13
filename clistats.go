@@ -172,14 +172,19 @@ func (s *Statistics) Start() error {
 	}
 
 	if s.Options.Web {
+		listenHost := s.Options.ListenHost
+		if listenHost == "" {
+			listenHost = DefaultOptions.ListenHost
+		}
+
 		mux := http.NewServeMux()
 		mux.HandleFunc("/metrics", s.metricsHandler)
 
 		// check if the default port is available
-		port, err := freeport.GetPort(freeport.TCP, "127.0.0.1", s.Options.ListenPort)
+		port, err := freeport.GetPort(freeport.TCP, listenHost, s.Options.ListenPort)
 		if err != nil {
 			// otherwise picks a random one and update the options
-			port, err = freeport.GetFreeTCPPort("127.0.0.1")
+			port, err = freeport.GetFreeTCPPort(listenHost)
 			if err != nil {
 				return err
 			}
@@ -244,7 +249,11 @@ func (s *Statistics) GetStatResponse(interval time.Duration, callback func(strin
 		return string(body), nil
 	}
 
-	url := fmt.Sprintf("http://127.0.0.1:%v/metrics", s.Options.ListenPort)
+	listenHost := s.Options.ListenHost
+	if listenHost == "" {
+		listenHost = DefaultOptions.ListenHost
+	}
+	url := fmt.Sprintf("http://%s:%v/metrics", listenHost, s.Options.ListenPort)
 	go func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
