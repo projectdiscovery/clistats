@@ -10,7 +10,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/projectdiscovery/freeport"
-	errorutil "github.com/projectdiscovery/utils/errors"
+	"github.com/projectdiscovery/utils/errkit"
 )
 
 // StatisticsClient is an interface implemented by a statistics client.
@@ -168,7 +168,7 @@ func (s *Statistics) metricsHandler(w http.ResponseWriter, req *http.Request) {
 // Start starts the event loop of the stats client.
 func (s *Statistics) Start() error {
 	if s.httpServer != nil {
-		return errorutil.New("server already started")
+		return errkit.New("server already started")
 	}
 
 	if s.Options.Web {
@@ -237,14 +237,14 @@ func (s *Statistics) GetStatResponse(interval time.Duration, callback func(strin
 	metricCallback := func(url string) (string, error) {
 		response, err := http.Get(url)
 		if err != nil {
-			return "", errorutil.New("Error getting /metrics response: %v", err)
+			return "", errkit.New("Error getting /metrics response: %v", err)
 		}
 		defer func() {
 			_ = response.Body.Close()
 		}()
 		body, err := io.ReadAll(response.Body)
 		if err != nil {
-			return "", errorutil.New("Error reading /metrics response body: %v", err)
+			return "", errkit.New("Error reading /metrics response body: %v", err)
 		}
 		return string(body), nil
 	}
