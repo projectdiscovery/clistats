@@ -159,7 +159,7 @@ func (s *Statistics) metricsHandler(w http.ResponseWriter, req *http.Request) {
 	data, err := jsoniter.Marshal(items)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(fmt.Sprintf(`{"error":"%s"}`, err)))
+		_, _ = fmt.Fprintf(w, `{"error":"%s"}`, err)
 		return
 	}
 	_, _ = w.Write(data)
