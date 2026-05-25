@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/json-iterator/go v1.1.12
 	github.com/projectdiscovery/freeport v0.0.6
-	github.com/projectdiscovery/utils v0.11.0
+	github.com/projectdiscovery/utils v0.11.1
 	github.com/stretchr/testify v1.11.1
 )
 
