@@ -1,11 +1,11 @@
 module github.com/projectdiscovery/clistats
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/json-iterator/go v1.1.12
 	github.com/projectdiscovery/freeport v0.0.7
-	github.com/projectdiscovery/utils v0.11.1
+	github.com/projectdiscovery/utils v0.11.2
 	github.com/stretchr/testify v1.12.1
 )
 
