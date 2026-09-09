@@ -151,8 +151,11 @@ func (s *Statistics) metricsHandler(w http.ResponseWriter, req *http.Request) {
 	}
 	// percent
 	if hasRequests && hasTotal {
-		percentData := (float64(requests) * float64(100)) / float64(total)
-		percent := String(uint64(percentData))
+		percent := String(uint64(0))
+		if total > 0 {
+			percentData := (float64(requests) * float64(100)) / float64(total)
+			percent = String(uint64(percentData))
+		}
 		items["percent"] = percent
 	}
 
