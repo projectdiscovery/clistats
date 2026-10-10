@@ -119,17 +119,8 @@ func NewWithOptions(ctx context.Context, options *Options) (*Statistics, error) 
 
 func (s *Statistics) metricsHandler(w http.ResponseWriter, req *http.Request) {
 	items := make(map[string]interface{})
-	for k, v := range s.counters {
-		items[k] = v.Load()
-	}
-	for k, v := range s.static {
-		items[k] = v
-	}
-	for k, v := range s.dynamic {
-		items[k] = v(s)
-	}
 
-	// Common fields
+	// Common fields, set first so that the caller's own values for them win
 	requests, hasRequests := s.GetCounter("requests")
 	startedAt, hasStartedAt := s.GetStatic("startedAt")
 	total, hasTotal := s.GetCounter("total")
@@ -157,6 +148,15 @@ func (s *Statistics) metricsHandler(w http.ResponseWriter, req *http.Request) {
 			percent = String(uint64(percentData))
 		}
 		items["percent"] = percent
+	}
+	for k, v := range s.counters {
+		items[k] = v.Load()
+	}
+	for k, v := range s.static {
+		items[k] = v
+	}
+	for k, v := range s.dynamic {
+		items[k] = v(s)
 	}
 
 	data, err := jsoniter.Marshal(items)

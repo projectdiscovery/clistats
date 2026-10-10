@@ -89,3 +89,25 @@ func TestMetricsHandlerPercentWithZeroTotal(t *testing.T) {
 	require.Nil(t, json.Unmarshal(recorder.Body.Bytes(), &items))
 	require.Equal(t, "0", items["percent"])
 }
+
+func TestMetricsHandlerKeepsCallerFields(t *testing.T) {
+	client, err := New()
+	require.Nil(t, err)
+
+	client.AddCounter("requests", 100)
+	client.AddCounter("total", 400)
+	client.AddStatic("startedAt", time.Now().Add(-10*time.Second))
+	client.AddDynamic("percent", func(StatisticsClient) interface{} { return "50" })
+	client.AddDynamic("rps", func(StatisticsClient) interface{} { return "7" })
+	client.AddDynamic("duration", func(StatisticsClient) interface{} { return "0:01:00" })
+
+	recorder := httptest.NewRecorder()
+	client.metricsHandler(recorder, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	items := make(map[string]interface{})
+	require.Nil(t, json.Unmarshal(recorder.Body.Bytes(), &items))
+	require.Equal(t, "50", items["percent"])
+	require.Equal(t, "7", items["rps"])
+	require.Equal(t, "0:01:00", items["duration"])
+}
